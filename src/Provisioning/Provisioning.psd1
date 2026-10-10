@@ -1,6 +1,6 @@
 @{
     RootModule           = 'Provisioning.psm1'
-    ModuleVersion        = '0.1.0'
+    ModuleVersion        = '0.2.0'
     GUID                 = 'aa2b21d6-2f03-4c7b-9c61-8ec44f655188'
     Author               = 'Mukhtaar Sugule'
     Description          = 'Works out the steps to set up a new starter or close down a leaver in Microsoft Entra ID, safely and repeatably.'
@@ -8,7 +8,8 @@
     CompatiblePSEditions = 'Desktop', 'Core'
 
     # Keep in step with the Public folder; tests\Module.Tests.ps1 checks this.
-    FunctionsToExport    = 'Get-LeaverAction', 'Get-StarterAction', 'Get-StarterPlan'
+    FunctionsToExport    = 'Get-EntraUserState', 'Get-LeaverAction', 'Get-StarterAction', 'Get-StarterPlan',
+                           'Invoke-LeaverRequest', 'Invoke-ProvisioningAction', 'Invoke-StarterRequest'
     CmdletsToExport      = @()
     VariablesToExport    = @()
     AliasesToExport      = @()
