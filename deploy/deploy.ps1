@@ -25,17 +25,34 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 
-$signedIn = az account show --query tenantId -o tsv
+# Runs az and stops if it fails. Judged by az's exit code, not by what it prints:
+# az writes harmless warnings to the error stream, which Windows PowerShell 5.1
+# would otherwise treat as a failure (found on the first real deploy, 10 Oct 2026).
+function Invoke-Az {
+    $ErrorActionPreference = 'Continue'   # only inside this function; the exit code check below decides
+    $output = & az @args --only-show-errors 2>&1 | ForEach-Object { "$_" }
+    if ($LASTEXITCODE -ne 0) { throw "az $($args[0]) $($args[1]) failed:`n$($output -join "`n")" }
+    $output
+}
+
+$signedIn = Invoke-Az account show --query tenantId -o tsv
 if ($signedIn -ne $TenantId) {
     throw "az is signed in to tenant $signedIn, not $TenantId. Run: az login --tenant $TenantId"
 }
 
-Write-Output "Creating/updating resource group $ResourceGroup in $Location..."
-az group create --name $ResourceGroup --location $Location --tags project=starter-leaver-api --output none
+if ((Invoke-Az group exists --name $ResourceGroup) -eq 'true') {
+    Write-Output "Using existing resource group $ResourceGroup."
+}
+else {
+    Write-Output "Creating resource group $ResourceGroup in $Location..."
+    Invoke-Az group create --name $ResourceGroup --location $Location --tags project=starter-leaver-api --output none
+}
 
-Write-Output 'Deploying infra\main.bicep...'
-$outputs = az deployment group create --resource-group $ResourceGroup --template-file "$root\infra\main.bicep" `
-    --parameters userDomain=$UserDomain tenantId=$TenantId --query properties.outputs | ConvertFrom-Json
+# The resources' region is passed separately: some subscriptions (e.g. free ones) have no
+# Consumption-plan quota in some regions, so the app may need a different region from the group.
+Write-Output "Deploying infra\main.bicep to $Location..."
+$outputs = Invoke-Az deployment group create --resource-group $ResourceGroup --template-file "$root\infra\main.bicep" `
+    --parameters userDomain=$UserDomain tenantId=$TenantId location=$Location --query properties.outputs | ConvertFrom-Json
 $appName = $outputs.functionAppName.value
 
 Write-Output 'Building the app package...'
@@ -50,7 +67,7 @@ $zip = "$build.zip"
 Compress-Archive -Path "$build\*" -DestinationPath $zip -Force
 
 Write-Output "Uploading to $appName..."
-az functionapp deployment source config-zip --resource-group $ResourceGroup --name $appName --src $zip --output none
+Invoke-Az functionapp deployment source config-zip --resource-group $ResourceGroup --name $appName --src $zip --output none
 Remove-Item $build, $zip -Recurse -Force
 
 Write-Output ''
