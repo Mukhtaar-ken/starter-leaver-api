@@ -1,0 +1,37 @@
+name: Tests
+
+# When to run: on every pull request, and whenever main changes.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  pester:
+    runs-on: windows-latest
+    steps:
+      # Download the repo's code onto GitHub's machine.
+      - uses: actions/checkout@v7
+
+      # Install Pester and run every test in the tests folder.
+      # -CI makes the job fail if any test fails.
+      - name: Run Pester tests
+        shell: pwsh
+        run: |
+          Install-Module Pester -MinimumVersion 5.0 -Force -SkipPublisherCheck -Scope CurrentUser
+          Invoke-Pester ./tests -Output Detailed -CI
+
+  analyze:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Read the code (without running it) and list anything badly written.
+      # Unlike Pester, it doesn't fail on its own, so we fail the step ourselves.
+      - name: Run PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+          $results = Invoke-ScriptAnalyzer -Path ./src -Recurse -Severity Warning, Error
+          $results | Format-Table -AutoSize
+          if ($results) { throw "PSScriptAnalyzer found $($results.Count) issue(s)." }

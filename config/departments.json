@@ -1,0 +1,5 @@
+{
+  "Sales":   ["All Staff", "Sales Team"],
+  "Finance": ["All Staff", "Finance Team"],
+  "IT":      ["All Staff", "IT Team"]
+}

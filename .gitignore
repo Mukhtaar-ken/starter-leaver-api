@@ -1,0 +1,8 @@
+# Local settings and secrets (Azure Functions, editors). Never commit these.
+local.settings.json
+*.env
+.vscode/
+
+# Pester test results
+testResults.xml
+coverage.xml
