@@ -32,6 +32,17 @@ jobs:
         shell: pwsh
         run: |
           Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
-          $results = Invoke-ScriptAnalyzer -Path ./src -Recurse -Severity Warning, Error
+          $results = foreach ($path in './src', './function', './deploy') {
+              Invoke-ScriptAnalyzer -Path $path -Recurse -Severity Warning, Error
+          }
           $results | Format-Table -AutoSize
           if ($results) { throw "PSScriptAnalyzer found $($results.Count) issue(s)." }
+
+  bicep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Compile the Bicep file. Catches typos and invalid settings before anything is deployed.
+      - name: Check the Bicep file
+        run: az bicep build --file infra/main.bicep --stdout > /dev/null
