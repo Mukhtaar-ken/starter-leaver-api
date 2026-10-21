@@ -96,6 +96,15 @@ Describe 'Invoke-StarterRequest' {
             }
         }
 
+        It 'looks the user up directly, not through the lagging search index' {
+            $null = Invoke-StarterRequest @starter -Confirm:$false
+
+            Should -Invoke Invoke-MgGraphRequest -ModuleName Provisioning -Times 0 -ParameterFilter {
+                $Method -eq 'GET' -and $Uri -like 'v1.0/users?*userPrincipalName*' -and
+                ($Headers.ConsistencyLevel -eq 'eventual' -or $Uri -like '*$count=true*')
+            }
+        }
+
         It 'never returns the password' {
             $done = Invoke-StarterRequest @starter -Confirm:$false
             ($done | ConvertTo-Json -Depth 5) | Should -Not -Match 'password'

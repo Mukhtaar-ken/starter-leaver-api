@@ -17,17 +17,23 @@ function Get-EntraUserState {
         [string]$EmployeeId
     )
 
+    $select = 'id,userPrincipalName,employeeId,accountEnabled'
+
     if ($PSCmdlet.ParameterSetName -eq 'ByUpn') {
-        $filter = "userPrincipalName eq '$($UserPrincipalName -replace "'", "''")'"
+        # A plain filter reads the directory itself, so it sees a user created a second ago.
+        # The 'eventual' mode below reads a search index that lags a few seconds; using it here
+        # made a quick second starter request try to create the same user again (found 21 Oct 2026).
+        $filter  = "userPrincipalName eq '$($UserPrincipalName -replace "'", "''")'"
+        $uri     = "v1.0/users?`$filter=$filter&`$select=$select"
+        $headers = @{}
     }
     else {
-        $filter = "employeeId eq '$EmployeeId'"
+        $filter  = "employeeId eq '$EmployeeId'"
+        $uri     = "v1.0/users?`$filter=$filter&`$select=$select&`$count=true"
+        $headers = @{ ConsistencyLevel = 'eventual' }
     }
 
-    $select = 'id,userPrincipalName,employeeId,accountEnabled'
-    $users  = @((Invoke-MgGraphRequest -Method GET -OutputType PSObject `
-        -Uri "v1.0/users?`$filter=$filter&`$select=$select&`$count=true" `
-        -Headers @{ ConsistencyLevel = 'eventual' }).value)
+    $users = @((Invoke-MgGraphRequest -Method GET -OutputType PSObject -Uri $uri -Headers $headers).value)
 
     if ($users.Count -eq 0) { return $null }
     if ($users.Count -gt 1) { throw "More than one user matches $filter. Fix the duplicate before going on." }
