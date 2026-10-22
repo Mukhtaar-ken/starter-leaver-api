@@ -41,6 +41,6 @@ function Invoke-StarterRequest {
     # One confirmation for the whole request, listing every step (or just the list, with -WhatIf).
     $steps = ($actions | ForEach-Object { if ($_.Group) { "$($_.Action) '$($_.Group)'" } else { $_.Action } }) -join ', '
     if ($PSCmdlet.ShouldProcess($plan.UserPrincipalName, $steps)) {
-        Invoke-ProvisioningAction -Action $actions -Plan $plan -TenantId $TenantId -Confirm:$false
+        Invoke-ProvisioningAction -Action $actions -Plan $plan -UserId $existing.Id -TenantId $TenantId -Confirm:$false
     }
 }

@@ -29,6 +29,6 @@ function Invoke-LeaverRequest {
     # One confirmation for the whole request, listing every step (or just the list, with -WhatIf).
     $steps = ($actions | ForEach-Object { if ($_.Group) { "$($_.Action) '$($_.Group)'" } else { $_.Action } }) -join ', '
     if ($PSCmdlet.ShouldProcess($existing.UserPrincipalName, $steps)) {
-        Invoke-ProvisioningAction -Action $actions -TenantId $TenantId -Confirm:$false
+        Invoke-ProvisioningAction -Action $actions -UserId $existing.Id -TenantId $TenantId -Confirm:$false
     }
 }
