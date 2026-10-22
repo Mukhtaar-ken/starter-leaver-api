@@ -20,9 +20,8 @@ function Get-EntraUserState {
     $select = 'id,userPrincipalName,employeeId,accountEnabled'
 
     if ($PSCmdlet.ParameterSetName -eq 'ByUpn') {
-        # A plain filter reads the directory itself, so it sees a user created a second ago.
-        # The 'eventual' mode below reads a search index that lags a few seconds; using it here
-        # made a quick second starter request try to create the same user again (found 21 Oct 2026).
+        # A plain filter is enough for an exact address, so skip the 'eventual' search index used below.
+        # Any read can still be a few seconds behind a change, though: Invoke-ProvisioningAction allows for that.
         $filter  = "userPrincipalName eq '$($UserPrincipalName -replace "'", "''")'"
         $uri     = "v1.0/users?`$filter=$filter&`$select=$select"
         $headers = @{}

@@ -65,6 +65,8 @@ The account is kept, not deleted.
   and return only the missing steps. Running the same request twice does nothing the second time (idempotent).
 - **Tenant guard.** The code refuses to change anything unless Graph is signed in to the tenant it was given,
   so it can't change the wrong tenant by accident.
+- **Allows for Entra lag.** Entra can be a few seconds behind itself after a change, so "already done" errors
+  count as done and a just-created user is retried briefly (see "What broke" below).
 - **Least privilege.** The managed identity only has `User.ReadWrite.All` and `GroupMember.ReadWrite.All`.
 - **`-WhatIf`.** Run locally, the module shows what it would do without doing it.
 
@@ -86,7 +88,7 @@ Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser
 Invoke-Pester ./tests -Output Detailed
 ```
 
-45 tests. Graph is mocked, so nothing touches a real tenant.
+53 tests. Graph is mocked, so nothing touches a real tenant.
 GitHub Actions runs them on every pull request, along with PSScriptAnalyzer and a Bicep compile check.
 
 ## Deploy
@@ -101,12 +103,21 @@ Callers need the function key: `az functionapp keys list -g rg-starter-leaver-ap
 
 ## What broke, and what I learned
 
-- **"Safe to run twice" failed if you ran it twice quickly.** In the live test, the same starter request sent
-  one second after the first returned an error. Minutes later it correctly said "nothing to do".
-  The user lookup used Graph's advanced query mode (`ConsistencyLevel: eventual`), which reads a search index
-  that lags a few seconds behind. So the second request didn't see the new user and tried to create them again.
-  The lookup by sign-in address now reads the directory directly. The mocked tests couldn't catch this:
-  they only test what you assume Graph does, so a real test against a live tenant still matters.
+- **"Safe to run twice" failed if you ran it twice quickly, and my first fix was wrong.** In the live test,
+  the same starter request sent one second after the first returned an error. Minutes later it correctly said "nothing to do".
+  My first theory was that only Graph's search index (`ConsistencyLevel: eventual`) lagged, so I switched that one lookup
+  to a plain filter (v0.3.1). The next live test failed the same way, and a leaver sent straight after found the user
+  by employee ID, then *couldn't* find them by sign-in address a second later.
+  The real cause: Entra keeps several copies of the directory, and they take a few seconds to agree after a change.
+  Any read straight after a write can miss it (**eventual consistency**). So "check what exists, then act" can't be
+  fully trusted. v0.4.0 allows for it:
+  - Graph saying "already exists" (user or group member) or "not found" (removing a member) counts as **already done**.
+    If the address is taken, it checks it's the same employee before carrying on; if not, it stops with a 409.
+  - The user's ID from the first lookup is **carried through**, instead of looking them up again.
+  - A brand-new user that isn't visible yet is **retried** a few times, 2 seconds apart.
+
+  Lessons: mocked tests only test what you assume Graph does, so a live test still matters. And test a fix
+  against the real thing before believing your theory about why it broke.
 - **The tests found a real gap.** If Graph returned a user with a blank ID, the code would have carried on
   and tried to change "nobody". It now stops.
 - **Warnings looked like failures.** `az` writes harmless warnings to the error stream, and Windows PowerShell 5.1
