@@ -67,4 +67,20 @@ Describe 'Invoke-ProvisioningHttpRequest' {
         $r.StatusCode | Should -Be 500
         $r.Body.error | Should -Not -Match 'token|tenant|line'
     }
+
+    It "logs Graph's own explanation, but still keeps it from the caller" {
+        Mock Invoke-LeaverRequest -ModuleName Provisioning {
+            $record = [System.Management.Automation.ErrorRecord]::new(
+                [Exception]::new('Response status code does not indicate success: BadRequest (Bad Request).'),
+                'GraphError', 'InvalidOperation', $null)
+            $record.ErrorDetails = [System.Management.Automation.ErrorDetails]::new('Invalid object identifier u1.')
+            throw $record
+        }
+
+        $r = Invoke-ProvisioningHttpRequest -Kind Leaver -Body @{ employeeId = 'E1001' } -TenantId $tenant `
+            -ErrorVariable logged -ErrorAction SilentlyContinue
+        $r.StatusCode | Should -Be 500
+        "$logged"     | Should -Match 'Graph said: Invalid object identifier u1'
+        $r.Body.error | Should -Not -Match 'Invalid object'
+    }
 }

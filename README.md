@@ -88,7 +88,7 @@ Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser
 Invoke-Pester ./tests -Output Detailed
 ```
 
-53 tests. Graph is mocked, so nothing touches a real tenant.
+54 tests. Graph is mocked, so nothing touches a real tenant.
 GitHub Actions runs them on every pull request, along with PSScriptAnalyzer and a Bicep compile check.
 
 ## Deploy
@@ -126,6 +126,24 @@ Callers need the function key: `az functionapp keys list -g rg-starter-leaver-ap
   The deploy script now lets the resources live in a different region from the resource group (UK West worked).
 - **Sign-in quirks.** Device-code sign-in is blocked when security defaults are on, and `Connect-MgGraph`
   fails when there's no console window. Both are worth knowing before you automate a sign-in.
+
+## Known limit: requests for the same person seconds apart
+
+Tested live on 22 Oct 2026 with v0.4.0:
+
+| Sequence | Result |
+|---|---|
+| Starter, then the same starter 1 second later (e.g. a double-click) | ✅ both 200, one account |
+| Leaver straight after a starter | ✅ 200 |
+| A second leaver 1 second after that | ❌ 500, and the user was left in one group |
+
+Most likely cause (not proven): a "remove from group" reached a copy of Entra that hadn't received the
+"add" yet, and the add caught up afterwards. Sending the leaver again a few minutes later finished the job.
+
+In real use, a starter and two leavers for the same person don't arrive within seconds, so I've accepted
+this rather than add more complexity. **Rule: leave a few seconds between requests for the same person,
+and if one fails, send it again.** It's always safe to retry. A 500 now logs Graph's own explanation
+(not just "BadRequest"), so the next one will say why.
 
 ## What I'd change next
 
