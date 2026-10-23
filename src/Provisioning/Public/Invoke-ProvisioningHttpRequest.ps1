@@ -67,7 +67,10 @@ function Invoke-ProvisioningHttpRequest {
             '*No account found*'      { return Reply 404 @{ error = $message } }
             '*already belongs to*'    { return Reply 409 @{ error = $message } }
         }
-        Write-Error -Message "$Kind request failed: $message" -ErrorAction Continue
+        # For a Graph failure the message only says "BadRequest"; Graph's own explanation is in
+        # ErrorDetails (found 22 Oct 2026). It goes to the log only, never to the caller.
+        $detail = if ($_.ErrorDetails.Message) { " Graph said: $($_.ErrorDetails.Message)" }
+        Write-Error -Message "$Kind request failed: $message$detail" -ErrorAction Continue
         Reply 500 @{ error = 'Something went wrong. Check the function logs.' }
     }
 }
